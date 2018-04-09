@@ -55,7 +55,7 @@ public class RNSensitiveInfoModule extends ReactContextBaseJavaModule {
         try {
             initKeyStore(reactContext);
         } catch (Exception e) {
-            Log.d("RNSensitiveInfo", e.getCause().getMessage());
+            //Log.d("RNSensitiveInfo", e.getCause().getMessage());
         }
     }
 
