@@ -55,7 +55,7 @@ public class RNSensitiveInfoModule extends ReactContextBaseJavaModule {
         try {
             initKeyStore(reactContext);
         } catch (Exception e) {
-            //Log.d("RNSensitiveInfo", e.getCause().getMessage());
+            Log.d("RNSensitiveInfo", e.getMessage());
         }
     }
 
@@ -74,7 +74,7 @@ public class RNSensitiveInfoModule extends ReactContextBaseJavaModule {
             try {
                 value = decrypt(value);
             } catch (Exception e) {
-                //Log.d("RNSensitiveInfo", e.getCause().getMessage());
+                Log.d("RNSensitiveInfo", e.getMessage());
             }
         }
 
@@ -90,7 +90,7 @@ public class RNSensitiveInfoModule extends ReactContextBaseJavaModule {
             putExtra(key, value, prefs(name));
             pm.resolve(null);
         } catch (Exception e) {
-            //Log.d("RNSensitiveInfo", e.getCause().getMessage());
+            Log.d("RNSensitiveInfo", e.getMessage());
             pm.reject(e);
         }
     }
@@ -122,7 +122,7 @@ public class RNSensitiveInfoModule extends ReactContextBaseJavaModule {
             try {
                 value = decrypt(value);
             } catch (Exception e) {
-               // Log.d("RNSensitiveInfo", e.getCause().getMessage());
+               Log.d("RNSensitiveInfo", e.getMessage());
             }
             resultData.putString(entry.getKey(), value);
         }
@@ -162,7 +162,6 @@ public class RNSensitiveInfoModule extends ReactContextBaseJavaModule {
                                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                                 .setRandomizedEncryptionRequired(false)
-                                .setUserAuthenticationRequired(true)
                                 .build());
                 keyGenerator.generateKey();
             } else {
