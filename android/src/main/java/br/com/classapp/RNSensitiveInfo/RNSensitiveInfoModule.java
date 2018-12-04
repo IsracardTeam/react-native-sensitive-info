@@ -55,7 +55,7 @@ public class RNSensitiveInfoModule extends ReactContextBaseJavaModule {
         try {
             initKeyStore(reactContext);
         } catch (Exception e) {
-            Log.d("RNSensitiveInfo", e.getMessage());
+           e.printStackTrace();
         }
     }
 
@@ -74,7 +74,7 @@ public class RNSensitiveInfoModule extends ReactContextBaseJavaModule {
             try {
                 value = decrypt(value);
             } catch (Exception e) {
-                Log.d("RNSensitiveInfo", e.getMessage());
+                e.printStackTrace();
             }
         }
 
@@ -121,7 +121,7 @@ public class RNSensitiveInfoModule extends ReactContextBaseJavaModule {
             try {
                 value = decrypt(value);
             } catch (Exception e) {
-               Log.d("RNSensitiveInfo", e.getMessage());
+               e.printStackTrace();
             }
             resultData.putString(entry.getKey(), value);
         }
