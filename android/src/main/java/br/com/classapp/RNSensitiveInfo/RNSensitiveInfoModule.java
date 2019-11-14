@@ -6,7 +6,7 @@ import android.os.Build;
 import android.security.KeyPairGeneratorSpec;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import android.util.Base64;
 import android.util.Log;
 
@@ -39,21 +39,15 @@ import javax.security.auth.x500.X500Principal;
 
 public class RNSensitiveInfoModule extends ReactContextBaseJavaModule {
 
-    private static final String AndroidKeyStore = "AndroidKeyStore";
-    private static final String RSA_MODE = "RSA/ECB/PKCS1Padding";
-    private static final String AES_GCM = "AES/GCM/NoPadding";
-    private static final String AES_ECB = "AES/ECB/PKCS7Padding";
-    private static KeyStore keyStore;
-    private static final String KEY_ALIAS = "SHARED_PREFERENCE_KEY";
-    private static final String ENCRYPTED_KEY = "ENCRYPTED_KEY";
-    private static final String ENCRYPTION_SHARED_PREFERENCE_NAME = "ENCRYPTION_SHARED_PREFERENCE";
-    private static final byte[] FIXED_IV = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1};
-    private static Key secretKey;
+    private SensitiveInfo mSensitiveInfo;
 
     public RNSensitiveInfoModule(ReactApplicationContext reactContext) {
         super(reactContext);
+
+        mSensitiveInfo = new SensitiveInfo(reactContext);
+
         try {
-            initKeyStore(reactContext);
+            mSensitiveInfo.initKeyStore(reactContext);
         } catch (Exception e) {
            e.printStackTrace();
         }
@@ -72,7 +66,7 @@ public class RNSensitiveInfoModule extends ReactContextBaseJavaModule {
         String value = prefs(name).getString(key, null);
         if (value != null) {
             try {
-                value = decrypt(value);
+                value = mSensitiveInfo.decrypt(value);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -119,7 +113,7 @@ public class RNSensitiveInfoModule extends ReactContextBaseJavaModule {
         for (Map.Entry<String, ?> entry : allEntries.entrySet()) {
             String value = entry.getValue().toString();
             try {
-                value = decrypt(value);
+                value = mSensitiveInfo.decrypt(value);
             } catch (Exception e) {
                e.printStackTrace();
             }
@@ -143,130 +137,9 @@ public class RNSensitiveInfoModule extends ReactContextBaseJavaModule {
 
     private void putExtra(String key, String value, SharedPreferences mSharedPreferences) throws Exception {
         SharedPreferences.Editor editor = mSharedPreferences.edit();
-        String encrypted = encrypt(value);
+        String encrypted = mSensitiveInfo.encrypt(value);
         editor.putString(key, encrypted).apply();
     }
 
-    private void initKeyStore(Context context) throws Exception {
-        keyStore = KeyStore.getInstance(AndroidKeyStore);
-        keyStore.load(null);
-        // Generate the RSA key pairs
-        if (!keyStore.containsAlias(KEY_ALIAS)) {
-            // Generate a key pair for encryption
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                KeyGenerator keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, AndroidKeyStore);
-                keyGenerator.init(
-                        new KeyGenParameterSpec.Builder(KEY_ALIAS,
-                                KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
-                                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                                .setRandomizedEncryptionRequired(false)
-                                .build());
-                keyGenerator.generateKey();
-            } else {
-                Calendar start = Calendar.getInstance();
-                Calendar end = Calendar.getInstance();
-                end.add(Calendar.YEAR, 30);
-                KeyPairGeneratorSpec spec = new KeyPairGeneratorSpec.Builder(context)
-                        .setAlias(KEY_ALIAS)
-                        .setSubject(new X500Principal("CN=" + KEY_ALIAS))
-                        .setSerialNumber(BigInteger.TEN)
-                        .setStartDate(start.getTime())
-                        .setEndDate(end.getTime())
-                        .build();
-                KeyPairGenerator kpg = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, AndroidKeyStore);
-                kpg.initialize(spec);
-                kpg.generateKeyPair();
-            }
 
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            secretKey = ((KeyStore.SecretKeyEntry) keyStore.getEntry(KEY_ALIAS, null)).getSecretKey();
-        } else {
-            //Generate and Store the AES Key
-            SharedPreferences pref = context.getSharedPreferences(ENCRYPTION_SHARED_PREFERENCE_NAME, Context.MODE_PRIVATE);
-            String encryptedKeyB64 = pref.getString(ENCRYPTED_KEY, null);
-            if (encryptedKeyB64 == null) {
-                byte[] key = new byte[16];
-                SecureRandom secureRandom = new SecureRandom();
-                secureRandom.nextBytes(key);
-                byte[] encryptedKey = rsaEncrypt(key);
-                encryptedKeyB64 = Base64.encodeToString(encryptedKey, Base64.DEFAULT);
-                SharedPreferences.Editor edit = pref.edit();
-                edit.putString(ENCRYPTED_KEY, encryptedKeyB64);
-                edit.commit();
-            }
-
-            byte[] encryptedKey = Base64.decode(encryptedKeyB64, Base64.DEFAULT);
-            byte[] key = rsaDecrypt(encryptedKey);
-            secretKey = new SecretKeySpec(key, "AES");
-        }
-
-
-    }
-
-    private byte[] rsaEncrypt(byte[] secret) throws Exception {
-        KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry) keyStore.getEntry(KEY_ALIAS, null);
-
-        Cipher inputCipher = Cipher.getInstance(RSA_MODE, "AndroidOpenSSL");
-        inputCipher.init(Cipher.ENCRYPT_MODE, privateKeyEntry.getCertificate().getPublicKey());
-
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        CipherOutputStream cipherOutputStream = new CipherOutputStream(outputStream, inputCipher);
-        cipherOutputStream.write(secret);
-        cipherOutputStream.close();
-
-        return outputStream.toByteArray();
-    }
-
-    private byte[] rsaDecrypt(byte[] encrypted) throws Exception {
-        KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry) keyStore.getEntry(KEY_ALIAS, null);
-
-        Cipher outputCipher = Cipher.getInstance(RSA_MODE, "AndroidOpenSSL");
-        outputCipher.init(Cipher.DECRYPT_MODE, privateKeyEntry.getPrivateKey());
-
-        CipherInputStream cipherInputStream = new CipherInputStream(new ByteArrayInputStream(encrypted), outputCipher);
-        ArrayList<Byte> values = new ArrayList<>();
-        int nextByte;
-        while ((nextByte = cipherInputStream.read()) != -1) {
-            values.add((byte) nextByte);
-        }
-
-        byte[] bytes = new byte[values.size()];
-        for (int i = 0; i < bytes.length; i++) {
-            bytes[i] = values.get(i).byteValue();
-        }
-        return bytes;
-    }
-
-    public String encrypt(String input) throws Exception {
-        byte[] bytes = input.getBytes();
-
-        Cipher c;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            c = Cipher.getInstance(AES_GCM);
-            c.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(128, FIXED_IV));
-        } else {
-            c = Cipher.getInstance(AES_ECB, "BC");
-            c.init(Cipher.ENCRYPT_MODE, secretKey);
-        }
-        byte[] encodedBytes = c.doFinal(bytes);
-        String encryptedBase64Encoded = Base64.encodeToString(encodedBytes, Base64.DEFAULT);
-        return encryptedBase64Encoded;
-    }
-
-
-    public String decrypt(String encrypted) throws Exception {
-        Cipher c;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            c = Cipher.getInstance(AES_GCM);
-            c.init(Cipher.DECRYPT_MODE, secretKey, new GCMParameterSpec(128, FIXED_IV));
-        } else {
-            c = Cipher.getInstance(AES_ECB, "BC");
-            c.init(Cipher.DECRYPT_MODE, secretKey);
-        }
-        byte[] decodedBytes = c.doFinal(Base64.decode(encrypted, Base64.DEFAULT));
-        return new String(decodedBytes);
-    }
 }
