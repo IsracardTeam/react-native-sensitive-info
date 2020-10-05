@@ -186,6 +186,11 @@ public class SensitiveInfo {
 
     public String decrypt(String encrypted) throws Exception {
         Cipher c;
+
+        if (secretKey == null) {
+            initKeyStore(mContext);
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             c = Cipher.getInstance(AES_GCM);
             c.init(Cipher.DECRYPT_MODE, secretKey, new GCMParameterSpec(128, FIXED_IV));
